@@ -1,0 +1,17 @@
+.modal-body {
+  max-height: 500px;
+  overflow-y: scroll;
+}
+
+.product-item {
+  border-bottom: 1px solid #eee;
+
+  &:last-child {
+    margin-bottom: none !important;
+    border-bottom: none !important;
+  }
+}
+
+.product-image-wrapper {
+  width: 100px;
+}

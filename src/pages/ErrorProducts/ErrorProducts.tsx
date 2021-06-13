@@ -1,20 +1,17 @@
-import { useEffect, useState } from "react";
-import { Container, Button, Input } from "reactstrap";
+import React, { useEffect, useState } from "react";
+import { Container, Button, Input, Pagination, PaginationItem, PaginationLink } from "reactstrap";
 import { ProductsUploaded } from "../../modals/ProductsUploaded/ProductsUploaded";
 import { Color, DisplayingProduct, Product } from "../../models";
 
 import "./ErrorProducts.scss";
 
-interface Props {
-
-}
-
-export const ErrorProducts = (props: Props) => {
+export const ErrorProducts = () => {
   const [originalProducts, setOriginalProducts] = useState<Product[]>([]);
   const [displayingProducts, setDisplayingProducts] = useState<DisplayingProduct[]>([]);
   const [updatedProducts, setUpdatedProducts] = useState<DisplayingProduct[]>([]);
   const [colors, setColors] = useState<Color[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [modal, setModal] = useState(false);
 
   const PRODUCTS_API_URL = "https://60ae0d5e80a61f00173324bc.mockapi.io/products";
   const COLORS_API_URL = "https://60ae0d5e80a61f00173324bc.mockapi.io/colors";
@@ -25,15 +22,12 @@ export const ErrorProducts = (props: Props) => {
     fetchColors();
   }, [])
 
-  // useEffect(() => {
-  //   console.log(originalProducts, displayingProducts);
-  // }, [displayingProducts]);
 
   const fetchProducts = async () => {
     const response = await fetch(PRODUCTS_API_URL);
     const products = await response.json();
-    setOriginalProducts(products);
-    setDisplayingProducts(products);
+    setOriginalProducts(JSON.parse(JSON.stringify(products)));
+    setDisplayingProducts(JSON.parse(JSON.stringify(products)));
   }
 
   const fetchColors = async () => {
@@ -44,8 +38,7 @@ export const ErrorProducts = (props: Props) => {
 
   const handleNameChange = (event: any, productId: number) => {
     const newDisplayingProducts = getInputChangedProducts(productId, "name", event.target.value);
-    // console.log(displayingProducts, originalProducts);
-    // setDisplayingProducts(newDisplayingProducts);
+    setDisplayingProducts(newDisplayingProducts);
   }
 
   const handleSkuChange = (event: any, productId: number) => {
@@ -59,34 +52,33 @@ export const ErrorProducts = (props: Props) => {
   }
 
   const getInputChangedProducts = (productId: number, field: string, newValue: any) => {
-    const newDisplayingProducts = [...displayingProducts];
-    const changedProductIdx = newDisplayingProducts.findIndex(product => product.id === productId);
-    newDisplayingProducts[changedProductIdx].name = newValue;
+    const newDisplayingProducts = JSON.parse(JSON.stringify(displayingProducts));
+    const changedProductIdx = newDisplayingProducts.findIndex((product: any) => product.id === productId);
     (newDisplayingProducts[changedProductIdx] as any)[field] = newValue;
-    console.log(newDisplayingProducts);
 
     return newDisplayingProducts;
   }
 
   const onSubmit = () => {
+    const newUpdatedProducts = [];
+    const newDisplayingProducts = JSON.parse(JSON.stringify(displayingProducts));
     let isError = false;
 
-    console.log(originalProducts, displayingProducts)
     for (let i = 0; i < displayingProducts.length; i++) {
-
+      const validatedProduct = getValidatedProduct(displayingProducts[i]);
+      newDisplayingProducts.splice(i, 1, validatedProduct.validatedProduct);
+      if (validatedProduct.isError) isError = true;
       if (compareProducts(originalProducts[i], displayingProducts[i])) {
-        const newUpdatedProducts = [...updatedProducts];
-        const validatedProduct = getValidatedProduct(displayingProducts[i]);
-        console.log(validatedProduct);
-
         newUpdatedProducts.push(displayingProducts[i]);
-
-        if (validatedProduct.isError) isError = true;
-        else {
-          const newDisplayingProducts = [...displayingProducts].splice(i, 1, validatedProduct.validatedProduct);
-          setDisplayingProducts(newDisplayingProducts);
-        }
       }
+    }
+
+
+    setUpdatedProducts(newUpdatedProducts);
+    setDisplayingProducts(newDisplayingProducts);
+
+    if (!isError) {
+      setModal(true);
     }
   }
 
@@ -96,28 +88,33 @@ export const ErrorProducts = (props: Props) => {
 
     if (!validatedProduct.name) validatedProduct.nameError = "Product name is required";
     else if (validatedProduct.name.length > 50) validatedProduct.nameError = "Product name max length is 50";
+    else validatedProduct.nameError = "";
+
     if (!validatedProduct.sku) validatedProduct.skuError = "Sku is required";
     else if (validatedProduct.sku.length > 20) validatedProduct.skuError = "Product sku max length is 20";
+    else validatedProduct.skuError = "";
 
     if (validatedProduct.nameError || validatedProduct.skuError) isError = true;
 
     return { isError, validatedProduct };
   }
 
-  const getUpdatedProducts = () => {
-
-  }
-
   const compareProducts = (product1: Product, product2: DisplayingProduct) => {
+    const errorKeys = ["skuError", "nameError"];
     let isChanged = false;
 
-    for (const key in product1) {
-      if ((product1 as any)[key] != (product2 as any)[key]) {
+    for (const key in product2) {
+      if (errorKeys.includes(key)) continue;
+      if ((product1 as any)[key] !== (product2 as any)[key]) {
         isChanged = true;
       }
     }
 
     return isChanged;
+  }
+
+  const toggleModal = () => {
+    setModal(!modal);
   }
 
   return (
@@ -148,7 +145,7 @@ export const ErrorProducts = (props: Props) => {
         
 
           {
-            displayingProducts.map(product => (
+            displayingProducts.slice((currentPage - 1) * ITEMS_PER_PAGE, (currentPage - 1) * ITEMS_PER_PAGE + ITEMS_PER_PAGE).map(product => (
               <tr key={product.id}>
                 <td>{product.id}</td>
                 <td>{product.errorDescription}</td>
@@ -156,21 +153,46 @@ export const ErrorProducts = (props: Props) => {
                   { product.image && <img src={product.image} alt={product.name} />}
                 </td>
                 <td>
-                  <input onChange={(event) => handleNameChange(event, product.id)} className="input mx-auto" value={product.name}/>
-                  { product.nameError && <div className="text-danger"></div> }  
+                  <Input onChange={(event) => handleNameChange(event, product.id)} className="input mx-auto" value={product.name}/>
+                  { product.nameError && <div className="text-danger">{ product.nameError }</div> }  
                 </td>
                 <td>
-                  <input onChange={(event) => handleSkuChange(event, product.id)} className="input mx-auto" value={product.sku} />
-                  { product.skuError && <div className="text-danger"></div> }  
+                  <Input onChange={(event) => handleSkuChange(event, product.id)} className="input mx-auto" value={product.sku} />
+                  { product.skuError && <div className="text-danger">{ product.skuError }</div> }  
                 </td>
-                <td></td>
+                <td>
+                  <Input type="select" onChange={(event) => handleColorChange(event, product.id)} value={product.color} >
+                    <option></option>
+                    {colors.map(color => (
+                      <option value={color.id} key={color.id} >{color.name}</option>
+                    ))}
+                  </Input>
+                </td>
               </tr>
             ))
           }
         </tbody>
 
       </table>
-      {/* <ProductsUploaded products={products} /> */}
+      <ProductsUploaded products={updatedProducts} colorList={colors} isOpen={ modal } toggle={() => {toggleModal()}} />
+
+      <Pagination aria-label="Page navigation" className="mt-5 mx-auto">
+        <PaginationItem disabled={currentPage === 1}>
+          <PaginationLink previous/>
+        </PaginationItem>
+        {
+          [...Array(Math.ceil(displayingProducts.length / ITEMS_PER_PAGE))].map((page, i) => (
+            <PaginationItem onClick={() => { setCurrentPage(i + 1) }}>
+              <PaginationLink>
+                {i + 1}
+              </PaginationLink>
+            </PaginationItem>
+          ))
+        }
+        <PaginationItem disabled={currentPage === Math.ceil(displayingProducts.length / ITEMS_PER_PAGE)}>
+          <PaginationLink next />
+        </PaginationItem>
+      </Pagination>
     </Container>
   );
 }
